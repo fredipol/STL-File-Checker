@@ -40,7 +40,7 @@
     if (x > LIMITS.x + .01) issues.push(`X width is ${fmt(x)}; maximum is 30 mm.`);
     if (y > LIMITS.y + .01) issues.push(`Y depth is ${fmt(y)}; maximum is 30 mm.`);
     if (z > LIMITS.z + .01) issues.push(`Height is ${fmt(z)}; maximum is 60 mm.`);
-    if (mesh.components > 1) warnings.push(`Found ${mesh.components} disconnected pieces. Check whether the model should be joined.`);
+    if (mesh.separateSections > 1) warnings.push(`Found ${mesh.separateSections} mesh sections in separate areas that do not touch. This may be more than one printable piece; check the Cura preview.`);
     if (!mesh.flatBase) warnings.push('No broad, flat surface was found at the lowest point. It may need rotating or a brim in Cura.');
     if (mesh.flatBase && mesh.baseRatio < .06) warnings.push('The flat base is small compared with the model footprint; it may be less stable while printing.');
     if (mesh.lean > 2.4) warnings.push('The model’s footprint is notably offset from its overall shape. Review stability and orientation in Cura.');
@@ -80,14 +80,22 @@
       const ids=tri.map(p=>{p.forEach((v,k)=>{bounds[k][0]=Math.min(bounds[k][0],v);bounds[k][1]=Math.max(bounds[k][1],v);});vertices.push(p);return key(p);});
       for(const [u,v] of [[0,1],[1,2],[2,0]]){const ek=[ids[u],ids[v]].sort().join('|');if(edgeMap.has(ek))join(ti,edgeMap.get(ek));else edgeMap.set(ek,ti);}
     });
-    const roots=new Set(parent.map((_,i)=>find(i)));
+    const componentBounds=new Map();
+    triangles.forEach((tri,i)=>{
+      const root=find(i);if(!componentBounds.has(root))componentBounds.set(root,[[Infinity,-Infinity],[Infinity,-Infinity],[Infinity,-Infinity]]);
+      const cb=componentBounds.get(root);for(const p of tri)p.forEach((v,k)=>{cb[k][0]=Math.min(cb[k][0],v);cb[k][1]=Math.max(cb[k][1],v);});
+    });
+    const groups=[...componentBounds.values()], separated=new Set(), gapTolerance=Math.max(0.05,Math.hypot(...bounds.map(b=>b[1]-b[0]))*1e-4);
+    for(let i=0;i<groups.length;i++)for(let j=i+1;j<groups.length;j++){
+      if(groups[i].some((axis,k)=>axis[1]+gapTolerance<groups[j][k][0]||groups[j][k][1]+gapTolerance<axis[0])){separated.add(i);separated.add(j);}
+    }
     const minZ=bounds[2][0], maxZ=bounds[2][1], zSpan=maxZ-minZ, tol=Math.max(1e-5,zSpan*1e-4); let baseArea=0;
     for(const tri of triangles){if(tri.every(p=>Math.abs(p[2]-minZ)<=tol)){const [a,b,c]=tri;baseArea+=Math.abs((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]))/2;}}
     const footprint=(bounds[0][1]-bounds[0][0])*(bounds[1][1]-bounds[1][0]);
     const centroid=[0,0,0];vertices.forEach(p=>p.forEach((v,k)=>centroid[k]+=v/vertices.length));
     const center=[(bounds[0][0]+bounds[0][1])/2,(bounds[1][0]+bounds[1][1])/2];
     const denom=Math.max(1e-9,Math.min(bounds[0][1]-bounds[0][0],bounds[1][1]-bounds[1][0]));
-    return {bounds,components:roots.size,flatBase:baseArea>=Math.max(1e-8,footprint*.002),baseRatio:footprint?baseArea/footprint:0,lean:Math.hypot(centroid[0]-center[0],centroid[1]-center[1])/denom};
+    return {bounds,separateSections:separated.size,flatBase:baseArea>=Math.max(1e-8,footprint*.002),baseRatio:footprint?baseArea/footprint:0,lean:Math.hypot(centroid[0]-center[0],centroid[1]-center[1])/denom};
   }
 
   function checkSymmetry(triangles, bounds) {
