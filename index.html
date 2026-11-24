@@ -39,18 +39,18 @@
       </div>
       <div class="summary" id="summary"></div>
       <div class="table-wrap">
-        <table><thead><tr><th scope="col">FILE</th><th scope="col">RESULT</th><th scope="col">SIZE (X × Y × Z)</th><th scope="col">CHECK DETAILS</th></tr></thead><tbody id="results-body"></tbody></table>
+        <table><thead><tr><th scope="col">FILE</th><th scope="col">RESULT</th><th scope="col">WIDTH × DEPTH × HEIGHT</th><th scope="col">WHAT WE FOUND</th></tr></thead><tbody id="results-body"></tbody></table>
       </div>
     </section>
 
     <section class="checks-section">
       <div class="section-title"><p class="eyebrow">WHAT WE CHECK</p><h2>Three quick stages</h2></div>
       <div class="check-grid">
-        <article class="check-card"><span class="step-number">01</span><h3>File integrity</h3><p>Recognises ASCII and binary STL files and checks that their triangle data is complete and readable.</p><span class="tag tag-certain">File check</span></article>
-        <article class="check-card"><span class="step-number">02</span><h3>Shape &amp; stability</h3><p>Checks for a circular, vertical opening near the top, clearly separate mesh sections, a flat base, a broad footprint and approximate symmetry.</p><span class="tag tag-review">Best-effort guidance</span></article>
-        <article class="check-card"><span class="step-number">03</span><h3>Size limits</h3><p>Checks the model is at most 30 mm wide and deep, and no more than 60 mm tall.</p><span class="tag tag-certain">Your class limits</span></article>
+        <article class="check-card"><span class="step-number">01</span><h3>File check</h3><p>Checks that the STL file can be read and contains complete 3D shape data.</p><span class="tag tag-certain">Can Cura read it?</span></article>
+        <article class="check-card"><span class="step-number">02</span><h3>Shape &amp; stability</h3><p>Checks the top socket, the model’s base and balance, and whether the shape looks symmetrical. Some results need a quick look in Cura.</p><span class="tag tag-review">Helpful guidance</span></article>
+        <article class="check-card"><span class="step-number">03</span><h3>Size limits</h3><p>Checks for a maximum 30 mm width and depth, 60 mm height, and an opening depth between 6 mm and 10.3 mm.</p><span class="tag tag-certain">Your class limits</span></article>
       </div>
-      <p class="caveat"><strong>A helpful check, not a guarantee.</strong> An STL does not say how a part will be oriented or printed. Always review the model in Cura; overhangs, thin walls, supports and real-world stability depend on printer and slicer settings.</p>
+      <p class="caveat"><strong>This check is a guide.</strong> It cannot guarantee a successful print. Open each model in Cura and look at the sliced preview before printing.</p>
     </section>
     <footer>Made for classroom 3D printing <span>·</span> Measurements assume STL units are millimetres</footer>
   </main>
