@@ -14,7 +14,7 @@ The site has no build step or server dependency.
 
 - File recognition and triangle data parsing for ASCII and binary STL.
 - Maximum X width 30 mm, Y depth 30 mm, Z height 60 mm.
-- Geometry guidance for models that sit above or extend below the z=0 workplane, clearly separate mesh sections, a flat base, small base area, a notably offset footprint, and approximate rotational/reflection symmetry.
+- Geometry guidance for models that sit above or extend below the z=0 workplane, a circular vertical opening near the top, clearly separate mesh sections, a flat base, small base area, a notably offset footprint, and approximate rotational/reflection symmetry.
 - A rough footprint-centre offset warning to prompt a stability review.
 
 STL files do not encode units, intended orientation, printer settings, material, or slicer repairs. This tool assumes coordinates are millimetres and checks the model's original Z position against z=0 with a 0.05 mm tolerance. It provides geometry guidance rather than guaranteeing successful printing. Review each model and sliced preview in Cura.
@@ -22,3 +22,5 @@ STL files do not encode units, intended orientation, printer settings, material,
 The symmetry check samples the STL surface and looks for common rotational orders (2 through 12 fold) around Z and reflection across one of several vertical planes. It is approximate; an asymmetry flag is informational and does not fail the file.
 
 The separate-section check only flags mesh components with non-overlapping bounding boxes. Intersecting or overlapping STL shells can represent a single solid, so ambiguous cases are not labelled as separate pieces.
+
+The top-opening check slices the triangle mesh at several heights near the top and looks for a circular inner contour that stays centred and nearly the same radius as it continues downward. It is an approximate geometry check; it does not require the opening to pass all the way through the model.

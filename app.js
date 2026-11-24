@@ -33,7 +33,7 @@
     if (!parsed.triangles.length) throw new Error('no valid triangles found');
     const mesh = analyse(parsed.triangles);
     const [x,y,z] = mesh.bounds.map(pair => pair[1] - pair[0]);
-    const issues = [], warnings = [];
+    const issues = [], warnings = [], info = [];
     const minZ = mesh.bounds[2][0];
     if (minZ > 0.05) warnings.push(`The model starts ${fmt(minZ)} above z=0, so it is floating above the workplane. Lower it onto the workplane in Tinkercad or use Cura’s “Drop to build plate” tool.`);
     if (minZ < -0.05) warnings.push(`The model extends ${fmt(Math.abs(minZ))} below z=0. Check its placement on the workplane or drop it onto the build plate in Cura.`);
@@ -50,7 +50,10 @@
       !symmetry.rotational ? 'no clear rotational symmetry around the vertical axis' : '',
       !symmetry.mirror ? 'no clear symmetry across a vertical plane' : ''
     ].filter(Boolean).join('; ')}. This is a shape observation, not a print failure.`);
-    return { name:file.name, size:file.size, dims:[x,y,z], issues, warnings, symmetry, state:issues.length ? 'fail' : warnings.length ? 'review' : 'pass', format:parsed.format };
+    const opening = checkTopOpening(parsed.triangles, mesh.bounds);
+    if (opening.ok) info.push('Likely circular, vertical opening detected near the top.');
+    else warnings.push(opening.message);
+    return { name:file.name, size:file.size, dims:[x,y,z], issues, warnings, info, symmetry, opening, state:issues.length ? 'fail' : warnings.length ? 'review' : 'pass', format:parsed.format };
   }
 
   function parseSTL(bytes) {
@@ -134,6 +137,85 @@
     return {rotational,mirror};
   }
 
+  function checkTopOpening(triangles, bounds) {
+    const height=bounds[2][1]-bounds[2][0], xySpan=Math.hypot(bounds[0][1]-bounds[0][0],bounds[1][1]-bounds[1][0]);
+    if(height<=0||xySpan<=0)return {ok:false,message:'Could not check for a top opening because the model has no measurable height or width.'};
+    const offsets=[.004,.012,.024,.04,.06,.085,.115,.15,.19,.24].map(f=>Math.max(.04,height*f)).filter((v,i,a)=>v<height*.35&&(i===0||v-a[i-1]>.01));
+    const levels=offsets.map(offset=>({z:bounds[2][1]-offset,circles:[] }));
+    const snap=Math.max(.0001,xySpan*.00001);
+    for(const level of levels)level.circles=sliceCircles(triangles,level.z,snap);
+    const allCircles=levels.flatMap(level=>level.circles);
+    if(!allCircles.length)return {ok:false,message:'No circular opening was detected near the top. Check that the model has an open hole on its upper surface.'};
+    const centreTolerance=Math.max(.35,xySpan*.012), tracks=[];
+    for(let start=0;start<levels.length;start++)for(const seed of levels[start].circles){
+      const track=[{...seed,z:levels[start].z}];let previous=seed;
+      for(let i=start+1;i<levels.length;i++){
+        const candidates=levels[i].circles.filter(c=>Math.abs(c.radius-previous.radius)<=Math.max(.18,previous.radius*.14)&&Math.hypot(c.cx-previous.cx,c.cy-previous.cy)<=centreTolerance);
+        if(!candidates.length)continue;
+        const next=candidates.sort((a,b)=>Math.hypot(a.cx-previous.cx,a.cy-previous.cy)-Math.hypot(b.cx-previous.cx,b.cy-previous.cy))[0];
+        track.push({...next,z:levels[i].z});previous=next;
+      }
+      if(track.length>=3)tracks.push(track);
+    }
+    if(!tracks.length)return {ok:false,message:'A circular-looking opening may be present, but the checker could not confirm a straight cylindrical wall extending down from the top.'};
+    tracks.sort((a,b)=>b.length-a.length);
+    const track=tracks[0], radii=track.map(p=>p.radius), avg=radii.reduce((a,b)=>a+b,0)/radii.length;
+    const radiusVariation=Math.max(...radii.map(r=>Math.abs(r-avg)))/Math.max(avg,.001);
+    const drift=Math.hypot(track[track.length-1].cx-track[0].cx,track[track.length-1].cy-track[0].cy);
+    if(drift>Math.max(.35,xySpan*.012))return {ok:false,message:'A circular opening was detected near the top, but its centre shifts with height. It may be tilted rather than vertical.'};
+    if(radiusVariation>.12)return {ok:false,message:'A circular opening was detected near the top, but its width changes with height. It may be tapered rather than cylindrical.'};
+    return {ok:true,message:'Likely circular vertical opening'};
+  }
+
+  function sliceCircles(triangles,z,snap) {
+    const segments=[];
+    for(const tri of triangles){
+      const hits=[];
+      for(const [i,j] of [[0,1],[1,2],[2,0]]){
+        const a=tri[i],b=tri[j];
+        if((a[2]<=z&&b[2]>z)||(b[2]<=z&&a[2]>z)){
+          const t=(z-a[2])/(b[2]-a[2]);hits.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]);
+        }
+      }
+      if(hits.length===2&&Math.hypot(hits[0][0]-hits[1][0],hits[0][1]-hits[1][1])>snap*.25)segments.push(hits);
+    }
+    const key=p=>`${Math.round(p[0]/snap)},${Math.round(p[1]/snap)}`, nodes=new Map(), edges=[];
+    const add=(k,e)=>{if(!nodes.has(k))nodes.set(k,[]);nodes.get(k).push(e);};
+    for(const seg of segments){const a=key(seg[0]),b=key(seg[1]);if(a===b)continue;const id=edges.length;edges.push([a,b]);add(a,id);add(b,id);}
+    const used=new Uint8Array(edges.length), loops=[];
+    for(let first=0;first<edges.length;first++){
+      if(used[first])continue;
+      const [start,next]=edges[first], path=[start];let at=next,edge=first,closed=false,guard=0;used[edge]=1;
+      while(guard++<edges.length+1){path.push(at);if(at===start){closed=true;break;}const options=nodes.get(at)||[];const nextEdge=options.find(e=>!used[e]);if(nextEdge===undefined)break;used[nextEdge]=1;const ends=edges[nextEdge];at=ends[0]===at?ends[1]:ends[0];}
+      if(closed&&path.length>=8){const points=path.slice(0,-1).map(k=>{const [x,y]=k.split(',').map(Number);return [x*snap,y*snap];});const metric=circleMetric(points);if(metric)loops.push({...metric,points});}
+    }
+    const circles=[];
+    for(const inner of loops){
+      if(inner.circularity<.78||inner.radialVariation>.12)continue;
+      const parent=loops.some(outer=>outer!==inner&&outer.area>inner.area*1.4&&pointInPolygon(inner.cx,inner.cy,outer.points));
+      if(parent)circles.push(inner);
+    }
+    return circles;
+  }
+
+  function circleMetric(points) {
+    let twiceArea=0,perimeter=0,cx=0,cy=0;
+    for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];twiceArea+=a[0]*b[1]-b[0]*a[1];perimeter+=Math.hypot(b[0]-a[0],b[1]-a[1]);cx+=a[0];cy+=a[1];}
+    const area=Math.abs(twiceArea)/2;if(!area||!perimeter)return null;cx/=points.length;cy/=points.length;
+    const radii=points.map(p=>Math.hypot(p[0]-cx,p[1]-cy)),radius=radii.reduce((a,b)=>a+b,0)/radii.length;
+    const radialVariation=Math.sqrt(radii.reduce((a,b)=>a+(b-radius)**2,0)/radii.length)/Math.max(radius,.001);
+    return {cx,cy,radius,radialVariation,area,circularity:4*Math.PI*area/(perimeter*perimeter)};
+  }
+
+  function pointInPolygon(x,y,points) {
+    let inside=false;
+    for(let i=0,j=points.length-1;i<points.length;j=i++){
+      const a=points[i],b=points[j];
+      if(((a[1]>y)!==(b[1]>y))&&(x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]))inside=!inside;
+    }
+    return inside;
+  }
+
   function render() {
     resultsSection.hidden = !reports.length;
     if (!reports.length) return;
@@ -142,15 +224,15 @@
     body.innerHTML=reports.map(r=>{
       const pill=r.state==='pass'?'pill-pass':r.state==='fail'?'pill-fail':'pill-review';
       const label=r.state==='pass'?'Looks good':r.category==='integrity'?'Invalid STL':r.state==='fail'?'Size limit':'Review';
-      const details=[...r.issues.map(t=>({t,type:'bad'})),...r.warnings.map(t=>({t,type:'warn'}))];
+      const details=[...r.issues.map(t=>({t,type:'bad'})),...r.warnings.map(t=>({t,type:'warn'})),...(r.info||[]).map(t=>({t,type:'good'}))];
       if(!details.length)details.push({t:'STL file read successfully.',type:'good'});
       return `<tr><td title="${esc(r.name)}">${esc(r.name)}</td><td><span class="result-pill ${pill}">${label}</span></td><td class="dimensions">${r.dims?r.dims.map(fmt).join(' × '):'—'}</td><td class="details">${details.map(d=>`<span class="detail ${d.type}"><span class="detail-icon">${d.type==='good'?'✓':d.type==='bad'?'!':'•'}</span>${esc(d.t)}</span>`).join('')}</td></tr>`;
     }).join('');
   }
   function esc(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function downloadReport(){
-    const rows=[['File','Result','X width (mm)','Y depth (mm)','Z height (mm)','Issues','Warnings']];
-    reports.forEach(r=>rows.push([r.name,r.state,...(r.dims||['','','']).map(n=>Number.isFinite(n)?n.toFixed(2):''),r.issues.join(' | '),r.warnings.join(' | ')]));
+    const rows=[['File','Result','X width (mm)','Y depth (mm)','Z height (mm)','Issues','Warnings','Checks passed']];
+    reports.forEach(r=>rows.push([r.name,r.state,...(r.dims||['','','']).map(n=>Number.isFinite(n)?n.toFixed(2):''),r.issues.join(' | '),r.warnings.join(' | '),(r.info||[]).join(' | ')]));
     const csv=rows.map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='stl-check-report.csv';a.click();URL.revokeObjectURL(a.href);
   }
