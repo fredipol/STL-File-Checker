@@ -14,7 +14,7 @@ The site has no build step or server dependency.
 
 - File recognition and triangle data parsing for ASCII and binary STL.
 - Maximum X width 30 mm, Y depth 30 mm, Z height 60 mm.
-- Geometry guidance for models that sit above or extend below the z=0 workplane, a circular vertical opening near the top with depth from 6 mm to 10.3 mm, clearly separate mesh sections, a flat base, small base area, a notably offset footprint, and approximate rotational/reflection symmetry.
+- Geometry guidance for models that sit above or extend below the z=0 workplane, a circular vertical opening near the top with depth from 6 mm to 10.3 mm, a hollow underside, clearly separate mesh sections, a flat base, small base area, a notably offset footprint, and approximate rotational/reflection symmetry.
 - A rough footprint-centre offset warning to prompt a stability review.
 
 STL files do not encode units, intended orientation, printer settings, material, or slicer repairs. This tool assumes coordinates are millimetres and checks the model's original Z position against z=0 with a 0.05 mm tolerance. It provides geometry guidance rather than guaranteeing successful printing. Review each model and sliced preview in Cura.

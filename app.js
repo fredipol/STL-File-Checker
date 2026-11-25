@@ -52,6 +52,7 @@
     if (mesh.separateSections > 1) warnings.push(`The file contains ${mesh.separateSections} separate areas that do not touch. They may print as separate pieces; check the Cura preview.`);
     if (!mesh.flatBase) warnings.push('I couldn’t find a wide, flat bottom face. Check that the model can sit flat on the build plate; rotating it or adding a brim in Cura may help.');
     if (mesh.flatBase && mesh.baseRatio < .06) warnings.push('The part touching the build plate looks small compared with the model. It may wobble or come loose while printing; check the Cura preview.');
+    if (hasHollowBottom(parsed.triangles, mesh.bounds)) warnings.push('The underside appears hollow: only a rim may touch the build plate, with an opening underneath. Check the Cura preview or turn the model so a solid face sits on the plate.');
     if (mesh.lean > 2.4) warnings.push('The model’s shape sits noticeably off-centre over its base. Check that it will stay upright in Cura.');
     if (parsed.format === 'ascii' && !parsed.solidEnded) warnings.push('The file ending looks incomplete. Cura may still open it, but re-export from Tinkercad if Cura shows a problem.');
     const symmetry = checkSymmetry(parsed.triangles, mesh.bounds);
@@ -200,6 +201,15 @@
     if(tilted)return {ok:false,message:`The hole leans away from upright: it moves sideways about ${centreShift.toFixed(1)} mm as it goes down.${oval?' Looking straight down, it also appears oval.':''}`,depthMm};
     if(oval)return {ok:false,message:'The hole stays upright, but looks wider in one direction than the other instead of round.',depthMm};
     return {ok:true,message:'The top opening looks round and upright.',depthMm,widerBottom};
+  }
+
+  function hasHollowBottom(triangles,bounds) {
+    const bottomZ=bounds[2][0],height=bounds[2][1]-bottomZ;
+    const offsets=[.02,.06,.12].filter(offset=>offset<height*.1);
+    if(offsets.length<2)return false;
+    const snap=Math.max(.0001,Math.hypot(bounds[0][1]-bounds[0][0],bounds[1][1]-bounds[1][0])*.00001);
+    const hollowSlices=offsets.filter(offset=>sliceCircles(triangles,bottomZ+offset,snap).length>0).length;
+    return hollowSlices>=2;
   }
 
   function measureOpeningDepth(triangles,topZ,bottomZ,track,meanX,meanY,meanZ,slopeX,slopeY,xySpan) {
