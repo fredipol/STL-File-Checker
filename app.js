@@ -77,6 +77,15 @@
       else if (opening.depthMm > 10.3) issues.push(`The socket is about ${opening.depthMm.toFixed(2)} mm deep; it must be 6–10.3 mm deep. Changing the grouped model’s height can change the socket too. Set the model height first, then make the socket shallower.`);
       else info.push(`Socket depth: about ${opening.depthMm.toFixed(1)} mm (required: 6–10.3 mm).`);
     } else warnings.push('I couldn’t measure the socket depth reliably. Please check it in Tinkercad or Cura.');
+    if (Number.isFinite(opening.mainDiameterMm)) {
+      if (opening.mainDiameterMm < 10.0 || opening.mainDiameterMm > 10.6) issues.push(`The main part of the socket is about ${opening.mainDiameterMm.toFixed(2)} mm across; it should be about 10.2–10.4 mm. Please adjust the socket size in Tinkercad.`);
+      else info.push(`Socket main width: about ${opening.mainDiameterMm.toFixed(1)} mm (target: 10.2–10.4 mm).`);
+    }
+    if (Number.isFinite(opening.deepDiameterMm)) {
+      if (opening.deepDiameterMm < 11.3 || opening.deepDiameterMm > 11.9) issues.push(`The wider click-fit part of the socket is about ${opening.deepDiameterMm.toFixed(2)} mm across; it should widen to about 11.5–11.7 mm. Please adjust the socket size in Tinkercad.`);
+      else info.push(`Socket click-fit width: about ${opening.deepDiameterMm.toFixed(1)} mm (target: 11.5–11.7 mm).`);
+    }
+    if (!Number.isFinite(opening.mainDiameterMm) || !Number.isFinite(opening.deepDiameterMm)) warnings.push('I couldn’t measure both socket widths reliably. Please check the socket size in Tinkercad or Cura.');
     return { name:file.name, size:file.size, dims:[x,y,z], issues, warnings, info, symmetry, opening, state:issues.length ? 'fail' : warnings.length ? 'review' : 'pass', format:parsed.format };
   }
 
@@ -204,11 +213,31 @@
     // Ignore small slice-to-slice fluctuations from the STL's faceted surface.
     // Only call it oval when the typical cross-section is clearly elongated or irregular.
     const oval=axisRatio<.92||median(track.map(p=>p.circularity))<.88||median(track.map(p=>p.radialVariation))>.16;
-    const depthMm=measureOpeningDepth(triangles,bounds[2][1],bounds[2][0],track,meanX,meanY,meanZ,slopeX,slopeY,xySpan);
-    if(tiltedCircle)return {ok:false,message:`The hole looks round, but it leans about ${tiltDegrees.toFixed(1)}° from upright.`,depthMm};
-    if(tilted)return {ok:false,message:`The hole leans away from upright: it moves sideways about ${centreShift.toFixed(1)} mm as it goes down.${oval?' Looking straight down, it also appears oval.':''}`,depthMm};
-    if(oval)return {ok:false,message:'The hole stays upright, but looks wider in one direction than the other instead of round.',depthMm};
-    return {ok:true,message:'The top opening looks round and upright.',depthMm,widerBottom};
+    const topZ=bounds[2][1],depthMm=measureOpeningDepth(triangles,topZ,bounds[2][0],track,meanX,meanY,meanZ,slopeX,slopeY,xySpan);
+    const socketWidths=measureSocketDiameters(triangles,topZ,depthMm,meanX,meanY,meanZ,slopeX,slopeY,xySpan);
+    if(tiltedCircle)return {ok:false,message:`The hole looks round, but it leans about ${tiltDegrees.toFixed(1)}° from upright.`,depthMm,...socketWidths};
+    if(tilted)return {ok:false,message:`The hole leans away from upright: it moves sideways about ${centreShift.toFixed(1)} mm as it goes down.${oval?' Looking straight down, it also appears oval.':''}`,depthMm,...socketWidths};
+    if(oval)return {ok:false,message:'The hole stays upright, but looks wider in one direction than the other instead of round.',depthMm,...socketWidths};
+    return {ok:true,message:'The top opening looks round and upright.',depthMm,widerBottom,...socketWidths};
+  }
+
+  function measureSocketDiameters(triangles,topZ,depthMm,meanX,meanY,meanZ,slopeX,slopeY,xySpan) {
+    if(!Number.isFinite(depthMm)||depthMm<4)return {};
+    const snap=Math.max(.0001,xySpan*.00001),samples=[];
+    for(let depth=1.5;depth<depthMm-.15;depth+=.4){
+      const z=topZ-depth,expectedX=meanX+slopeX*(z-meanZ),expectedY=meanY+slopeY*(z-meanZ);
+      const candidates=sliceCircles(triangles,z,snap).filter(c=>c.radius>2&&Math.hypot(c.cx-expectedX,c.cy-expectedY)<=Math.max(.8,xySpan*.025));
+      if(candidates.length){const circle=candidates.sort((a,b)=>Math.hypot(a.cx-expectedX,a.cy-expectedY)-Math.hypot(b.cx-expectedX,b.cy-expectedY))[0];samples.push({depth,diameter:circle.radius*2});}
+    }
+    const median=values=>{const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.floor(sorted.length/2)];};
+    const boreEnd=depthMm-2.5,boreSamples=samples.filter(s=>s.depth>=1.5&&s.depth<=boreEnd).map(s=>s.diameter);
+    const mainDiameterMm=boreSamples.length>=3?median(boreSamples):null;
+    if(!Number.isFinite(mainDiameterMm))return {};
+    const deepSamples=samples.filter(s=>s.depth>=Math.max(1.5,depthMm-2.5)&&s.depth<=depthMm-.15).map(s=>s.diameter);
+    if(!deepSamples.length)return {mainDiameterMm};
+    const expandedSamples=deepSamples.filter(d=>d>mainDiameterMm*1.06);
+    const deepDiameterMm=expandedSamples.length>=2?median(expandedSamples):Math.max(...deepSamples);
+    return {mainDiameterMm,deepDiameterMm};
   }
 
   function hasHollowBottom(triangles,bounds) {
