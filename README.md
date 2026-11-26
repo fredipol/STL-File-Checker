@@ -1,6 +1,6 @@
 # STL Print Check
 
-A static, browser-only STL checker designed for GitHub Pages. It accepts batches of STL files (including 30 or more), reads ASCII and binary STL, reports per-file results, and can export the report as CSV. Files are read locally and are not sent to a server.
+A static, browser-only STL checking site designed for GitHub Pages. The home page asks whether to check **Handles** or **Stamps**. Each checker accepts batches of STL files (including 30 or more), reads ASCII and binary STL, reports per-file results, and can export the report as CSV. Files are read locally and are not sent to a server.
 
 ## Publish with GitHub Pages
 
@@ -11,6 +11,18 @@ A static, browser-only STL checker designed for GitHub Pages. It accepts batches
 The site has no build step or server dependency.
 
 ## Checks and limits
+
+### Stamps
+
+- File readability and complete, valid triangle coordinates.
+- Maximum X width 36 mm, Y depth 36 mm, Z height 40 mm. The cone above the snap stem may be taller or steeper within this envelope.
+- Placement against z=0 with a 0.05 mm tolerance.
+- Snap stem profile checked against the reference design: split tip and snap collar, then a two-prong shaft about 10 mm across. Cross-section tolerances allow small STL differences.
+- Top disk checked for a 36 mm circular diameter and 4 mm straight sidewall thickness (±0.5 mm diameter and ±0.25 mm thickness tolerances).
+- Engraved top details limited to 1 mm deep, with 0.05 mm measurement tolerance.
+- Flat bottom, stem contact area compared with the reference (about 45 mm²), clearly separate mesh sections, and a rough footprint-centre offset warning.
+
+### Handles
 
 - File recognition and triangle data parsing for ASCII and binary STL.
 - Maximum X width 30 mm, Y depth 30 mm, Z height 60 mm.

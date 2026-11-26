@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fff9e9">
+  <title>Handle Checker · STL Print Check</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="index.html" aria-label="STL Print Check home"><span class="brand-mark">▰</span> STL Print Check</a>
+      <a class="back-link" href="index.html">← Change checker</a>
+      <span class="local-note"><span class="status-dot"></span> Files stay on this device</span>
+    </header>
+
+    <section class="intro">
+      <p class="eyebrow">CLASSROOM PRINT READINESS</p>
+      <h1>Ready for the printer?</h1>
+      <p class="lede">Check your Tinkercad models before they go to Cura. Add a class set of STL files and get a clear report for each one.</p>
+    </section>
+
+    <section class="upload-card" aria-labelledby="upload-title">
+      <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="Choose or drop STL files">
+        <div class="upload-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M24 31V8m0 0-9 9m9-9 9 9M9 29v10h30V29"/></svg></div>
+        <h2 id="upload-title">Drop your STL files here</h2>
+        <p>or <button id="browse-button" class="text-button" type="button">choose files</button> from your computer</p>
+        <span class="file-hint">Select as many as you need · .stl files</span>
+        <input id="file-input" type="file" accept=".stl,model/stl,application/sla" multiple hidden>
+      </div>
+      <div class="privacy-row"><span>✓</span> Checks run in your browser. Your files are never uploaded.</div>
+      <p id="progress-message" class="progress-message" role="status" aria-live="polite"></p>
+    </section>
+
+    <section id="results-section" class="results-section" hidden aria-live="polite">
+      <div class="results-heading">
+        <div><p class="eyebrow">CHECK RESULTS</p><h2>Your file report</h2></div>
+        <div class="report-actions"><button id="download-button" class="button button-light" type="button">Download report</button><button id="clear-button" class="button button-quiet" type="button">Clear all</button></div>
+      </div>
+      <div class="summary" id="summary"></div>
+      <p class="result-guide"><span class="guide-item"><i class="guide-dot guide-fail"></i><strong>Needs fixing</strong> — a class requirement was missed.</span><span class="guide-item"><i class="guide-dot guide-review"></i><strong>Check in Cura</strong> — please review this suggestion.</span><span class="guide-item"><i class="guide-dot guide-pass"></i><strong>Passed checks</strong> — still review the sliced preview before printing.</span></p>
+      <div class="table-wrap">
+        <table><thead><tr><th scope="col">FILE</th><th scope="col">RESULT</th><th scope="col">WIDTH × DEPTH × HEIGHT</th><th scope="col">WHAT WE FOUND</th></tr></thead><tbody id="results-body"></tbody></table>
+      </div>
+    </section>
+
+    <section class="checks-section">
+      <div class="section-title"><p class="eyebrow">WHAT WE CHECK</p><h2>Three quick stages</h2></div>
+      <div class="check-grid">
+        <article class="check-card"><span class="step-number">01</span><h3>File check</h3><p>Checks that the STL file can be read and contains complete 3D shape data.</p><span class="tag tag-certain">Can Cura read it?</span></article>
+        <article class="check-card"><span class="step-number">02</span><h3>Shape &amp; stability</h3><p>Checks the top socket, whether the underside is hollow, the model’s balance and whether the shape looks symmetrical. Some results need a quick look in Cura.</p><span class="tag tag-review">Helpful guidance</span></article>
+        <article class="check-card"><span class="step-number">03</span><h3>Size limits</h3><p>Checks for a maximum 30 mm width and depth, 60 mm height, and an opening depth between 6 mm and 10.3 mm.</p><span class="tag tag-certain">Your class limits</span></article>
+      </div>
+      <p class="caveat"><strong>This check is a guide.</strong> It cannot guarantee a successful print. Open each model in Cura and look at the sliced preview before printing.</p>
+    </section>
+    <footer>Made for classroom 3D printing <span>·</span> Measurements assume STL units are millimetres</footer>
+  </main>
+</body>
+</html>

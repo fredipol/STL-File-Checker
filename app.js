@@ -4,6 +4,7 @@
   const resultsSection = document.querySelector('#results-section');
   const body = document.querySelector('#results-body');
   const summary = document.querySelector('#summary');
+  const progress = document.querySelector('#progress-message');
   let reports = [];
   const LIMITS = { x: 30, y: 30, z: 60 };
   const fmt = n => Number.isFinite(n) ? `${n.toFixed(1)} mm` : '—';
@@ -15,16 +16,23 @@
   for (const type of ['dragenter','dragover']) zone.addEventListener(type, e => { e.preventDefault(); zone.classList.add('dragging'); });
   for (const type of ['dragleave','drop']) zone.addEventListener(type, e => { e.preventDefault(); zone.classList.remove('dragging'); });
   zone.addEventListener('drop', e => addFiles([...e.dataTransfer.files]));
-  document.querySelector('#clear-button').addEventListener('click', () => { reports = []; render(); });
+  document.querySelector('#clear-button').addEventListener('click', () => { reports = []; progress.textContent=''; render(); });
   document.querySelector('#download-button').addEventListener('click', downloadReport);
 
   async function addFiles(files) {
     const stls = files.filter(f => /\.stl$/i.test(f.name) || /model\/stl|application\/sla/i.test(f.type));
-    for (const file of stls) {
+    const skipped=files.length-stls.length;
+    if(!stls.length){progress.textContent='No STL files found in that selection. Choose files ending in .stl.';return;}
+    for (let i=0;i<stls.length;i++) {
+      const file=stls[i];
+      progress.textContent=`Checking file ${i+1} of ${stls.length}: ${file.name}`;
+      await new Promise(resolve=>requestAnimationFrame(resolve));
       try { reports.push(await inspectFile(file)); }
       catch (error) { reports.push({ name:file.name, size:null, issues:[friendlyFileError(error)], warnings:[], state:'fail', category:'integrity' }); }
       render();
     }
+    const skippedText=skipped?`; skipped ${skipped} non-STL file${skipped===1?'':'s'}`:'';
+    progress.textContent=`Finished checking ${stls.length} STL file${stls.length===1?'':'s'}${skippedText}.`;
   }
 
   function friendlyFileError(error) {
@@ -319,10 +327,10 @@
     resultsSection.hidden = !reports.length;
     if (!reports.length) return;
     const counts={pass:0,review:0,fail:0};reports.forEach(r=>counts[r.state]++);
-    summary.innerHTML=`<span class="summary-chip"><b>${reports.length}</b> files checked</span><span class="summary-chip"><b>${counts.pass}</b> checks passed</span><span class="summary-chip"><b>${counts.review}</b> need a look</span><span class="summary-chip"><b>${counts.fail}</b> do not meet a requirement</span>`;
+    summary.innerHTML=`<span class="summary-chip"><b>${reports.length}</b> files checked</span><span class="summary-chip"><b>${counts.pass}</b> passed</span><span class="summary-chip"><b>${counts.review}</b> check in Cura</span><span class="summary-chip"><b>${counts.fail}</b> need fixing</span>`;
     body.innerHTML=sortedReports().map(r=>{
       const pill=r.state==='pass'?'pill-pass':r.state==='fail'?'pill-fail':'pill-review';
-      const label=r.state==='pass'?'Checks passed':r.category==='integrity'?'Can’t read file':r.state==='fail'?'Over a limit':'Needs a look';
+      const label=r.state==='pass'?'Passed checks':r.category==='integrity'?'Can’t read file':r.state==='fail'?'Needs fixing':'Check in Cura';
       const details=[...r.issues.map(t=>({t,type:'bad'})),...r.warnings.map(t=>({t,type:'warn'})),...(r.info||[]).map(t=>({t,type:'good'}))];
       if(!details.length)details.push({t:'No issues were found by these checks. Open the file in Cura and review the preview before printing.',type:'good'});
       return `<tr><td title="${esc(r.name)}">${esc(r.name)}</td><td><span class="result-pill ${pill}">${label}</span></td><td class="dimensions">${r.dims?r.dims.map(fmt).join(' × '):'—'}</td><td class="details">${details.map(d=>`<span class="detail ${d.type}"><span class="detail-icon">${d.type==='good'?'✓':d.type==='bad'?'!':'•'}</span>${esc(d.t)}</span>`).join('')}</td></tr>`;
@@ -335,6 +343,6 @@
     const csv=rows.map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='stl-check-report.csv';a.click();URL.revokeObjectURL(a.href);
   }
-  function reportLabel(r){return r.state==='pass'?'Checks passed':r.category==='integrity'?'Can’t read file':r.state==='fail'?'Over a limit':'Needs a look';}
+  function reportLabel(r){return r.state==='pass'?'Passed checks':r.category==='integrity'?'Can’t read file':r.state==='fail'?'Needs fixing':'Check in Cura';}
   function sortedReports(){const priority={fail:0,review:1,pass:2};return reports.map((report,index)=>({report,index})).sort((a,b)=>priority[a.report.state]-priority[b.report.state]||a.index-b.index).map(item=>item.report);}
 })();
